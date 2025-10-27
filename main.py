@@ -399,3 +399,10 @@ def read_root():
 # --- DATABASE INITIALIZATION ---
 # Create database tables (in-memory SQLite table)
 Base.metadata.create_all(bind=engine)
+
+# ----------------------------------------------------
+# --- EXTREME OVERRIDE: MANUAL RUN BLOCK ---
+# This block forces the app to listen on port 8000, which Railway should pick up.
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
