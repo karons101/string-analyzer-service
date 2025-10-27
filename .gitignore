@@ -11,3 +11,8 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 .DS_Store
+
+# Virtual Environment
+venv/
+# Local Database File
+analyzer.db
