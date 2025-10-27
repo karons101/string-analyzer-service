@@ -382,6 +382,13 @@ def delete_specific_analysis(string_hash: str, db: Session = Depends(get_db)):
     return
 
 
+# --- Root Endpoint for Health Check ---
+@app.get("/")
+def read_root():
+    """Simple root endpoint to confirm API is running."""
+    return {"status": "ok", "service": "String Analyzer Service"}
+
+
 # ----------------------------------------------------
 # --- DATABASE INITIALIZATION ---
 # Create database tables (analyzer.db file and string_analysis table)
