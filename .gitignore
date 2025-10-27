@@ -1,0 +1,13 @@
+# Python Virtual Environment
+venv/
+.venv/
+
+# Database File
+analyzer.db
+
+# Python/IDE Artifacts
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.DS_Store
