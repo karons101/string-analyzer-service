@@ -13,7 +13,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, Field
 
 # --- DATABASE CONFIGURATION ---
-SQLALCHEMY_DATABASE_URL = "sqlite:///./analyzer.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///analyzer.db" # CRITICAL CHANGE: Removed the leading './' to simplify the relative path
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
