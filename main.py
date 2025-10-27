@@ -4,6 +4,10 @@ import re
 from typing import Dict, List, Optional
 from datetime import datetime
 
+# --- CRITICAL FIX: Suppress SQLAlchemy Deprecation Warnings ---
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
 # --- FASTAPI & DEPENDENCY IMPORTS ---
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
