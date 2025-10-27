@@ -17,7 +17,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, Field
 
 # --- DATABASE CONFIGURATION ---
-SQLALCHEMY_DATABASE_URL = "sqlite:///analyzer.db" # CRITICAL CHANGE: Removed the leading './' to simplify the relative path
+# Change from file-based to in-memory:
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:" 
+# NOTE: Data will be lost on every deploy, but the service will start!
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
@@ -395,5 +397,5 @@ def read_root():
 
 # ----------------------------------------------------
 # --- DATABASE INITIALIZATION ---
-# Create database tables (analyzer.db file and string_analysis table)
+# Create database tables (in-memory SQLite table)
 Base.metadata.create_all(bind=engine)
