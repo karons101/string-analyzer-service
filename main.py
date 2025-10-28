@@ -3,6 +3,7 @@ from collections import Counter
 import re
 from typing import Dict, List, Optional
 from datetime import datetime
+import json # <-- NEW: Import JSON library for manual serialization
 
 # --- CRITICAL FIX: Suppress SQLAlchemy Deprecation Warnings ---
 import warnings
@@ -11,7 +12,8 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 # --- FASTAPI & DEPENDENCY IMPORTS ---
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, JSON, select, DateTime, func, and_
+# REMOVED JSON import from SQLAlchemy, replaced with String
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, select, DateTime, func, and_ 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, Field
@@ -51,7 +53,8 @@ class StringAnalysis(Base):
     is_palindrome = Column(Boolean)
     unique_characters = Column(Integer)
     word_count = Column(Integer)
-    character_frequency_map = Column(JSON)
+    # CRITICAL CHANGE: Changed from Column(JSON) to Column(String) for stability
+    character_frequency_map = Column(String) 
 
 
 # ----------------------------------------------------
@@ -65,7 +68,7 @@ class AnalysisProperties(BaseModel):
     unique_characters: int
     word_count: int
     sha256_hash: str
-    character_frequency_map: Dict
+    character_frequency_map: Dict # Pydantic still expects a Dict
 
     class Config:
         orm_mode = True
@@ -83,6 +86,11 @@ class StringAnalysisOut(BaseModel):
     @classmethod
     def build_response(cls, db_object: StringAnalysis) -> 'StringAnalysisOut':
         """Constructs the nested Pydantic object from a flat SQLAlchemy object."""
+        
+        # CRITICAL FIX: Deserialize the string back into a dictionary for Pydantic
+        if isinstance(db_object.character_frequency_map, str):
+            db_object.character_frequency_map = json.loads(db_object.character_frequency_map)
+        
         properties_data = AnalysisProperties.from_orm(db_object)
         return cls(
             id=db_object.sha256_hash,
@@ -245,9 +253,16 @@ def analyze_and_save_string_api(
     
     # 4. If not found, create and save a new database record
     print(f"--- INFO: Hash {current_hash[:8]} NOT found. Creating new record.")
+    
+    # CRITICAL CHANGE: Manually unpack and serialize the character_frequency_map
     db_analysis = StringAnalysis(
         value=string_input.value,
-        **analysis_results
+        length=analysis_results['length'],
+        is_palindrome=analysis_results['is_palindrome'],
+        unique_characters=analysis_results['unique_characters'],
+        word_count=analysis_results['word_count'],
+        sha256_hash=analysis_results['sha256_hash'],
+        character_frequency_map=json.dumps(analysis_results['character_frequency_map']) 
     )
     
     db.add(db_analysis)
