@@ -24,8 +24,7 @@ from pydantic import BaseModel, Field
 SQLALCHEMY_DATABASE_URL = "sqlite:///./temp_data.db" 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL
-    # Removed connect_args={"check_same_thread": False} as it's no longer necessary
-    # and can cause issues with file-based SQLite in production-like setups.
+    # Removed connect_args={"check_same_thread": False} as it is not needed here
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
