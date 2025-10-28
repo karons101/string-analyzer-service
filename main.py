@@ -17,11 +17,15 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, Field
 
-# --- DATABASE CONFIGURATION ---
-# Change from file-based to in-memory:
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:" 
+# ----------------------------------------------------
+# --- DATABASE CONFIGURATION (CRITICAL STABILITY FIX) ---
+# CRITICAL FIX: Use a local file path instead of in-memory for thread safety.
+# This fixes the "no such table" error in multi-process deployments (Railway).
+SQLALCHEMY_DATABASE_URL = "sqlite:///./temp_data.db" 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL
+    # Removed connect_args={"check_same_thread": False} as it's no longer necessary
+    # and can cause issues with file-based SQLite in production-like setups.
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -140,7 +144,6 @@ def analyze_string(value: str) -> Dict:
 
 # ----------------------------------------------------
 # --- NLP HELPER FUNCTION (FINAL, FLEXIBLE REGEX) ---
-# ... (parse_natural_language_filters remains unchanged) ...
 def parse_natural_language_filters(query: str) -> Dict[str, str]:
     filters = {}
     query = query.lower()
@@ -179,7 +182,6 @@ def parse_natural_language_filters(query: str) -> Dict[str, str]:
     return filters
 
 def apply_filters_to_query(query, applied_filters):
-    # ... (apply_filters_to_query remains unchanged) ...
     is_palindrome_filter = applied_filters.get("is_palindrome")
     if is_palindrome_filter is not None:
         bool_val = is_palindrome_filter.lower() == 'true'
@@ -220,7 +222,7 @@ def analyze_and_save_string_api(
 
     # 2. Check the database for an existing record with this hash
     stmt = select(StringAnalysis).filter_by(sha256_hash=current_hash)
-    db_analysis = db.scalar(stmt) # <-- THIS IS WHERE THE CRASH OCCURRED!
+    db_analysis = db.scalar(stmt)
     
     if db_analysis:
         print(f"--- INFO: Hash {current_hash[:8]} found. Returning 409 Conflict.")
@@ -249,7 +251,6 @@ def analyze_and_save_string_api(
 
 # ----------------------------------------------------
 # --- API ENDPOINT: GET (Retrieve All with Filtering) ---
-# ... (get_all_analyses remains unchanged) ...
 @app.get("/strings", response_model=StringListOut)
 def get_all_analyses(
     db: Session = Depends(get_db),
@@ -278,7 +279,6 @@ def get_all_analyses(
 
 # ----------------------------------------------------
 # --- API ENDPOINT: GET (Filter by Natural Language) ---
-# ... (filter_by_nlp remains unchanged) ...
 @app.get("/strings/filter-by-natural-language", response_model=StringListOut)
 def filter_by_nlp(
     query: str = Query(..., description="Natural language query string (e.g., 'palindromes longer than 5')"),
@@ -305,7 +305,6 @@ def filter_by_nlp(
 
 # ----------------------------------------------------
 # --- API ENDPOINT: GET (Retrieve Specific String) ---
-# ... (get_specific_analysis remains unchanged) ...
 @app.get("/strings/{string_hash}", response_model=StringAnalysisOut)
 def get_specific_analysis(string_hash: str, db: Session = Depends(get_db)):
     stmt = select(StringAnalysis).filter_by(sha256_hash=string_hash)
@@ -321,7 +320,6 @@ def get_specific_analysis(string_hash: str, db: Session = Depends(get_db)):
 
 # ----------------------------------------------------
 # --- API ENDPOINT: DELETE (Remove Specific String) ---
-# ... (delete_specific_analysis remains unchanged) ...
 @app.delete("/strings/{string_hash}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_specific_analysis(string_hash: str, db: Session = Depends(get_db)):
     stmt = select(StringAnalysis).filter_by(sha256_hash=string_hash)
