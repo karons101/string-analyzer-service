@@ -18,13 +18,14 @@ from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, Field
 
 # ----------------------------------------------------
-# --- DATABASE CONFIGURATION (CRITICAL STABILITY FIX) ---
-# CRITICAL FIX: Use a local file path instead of in-memory for thread safety.
-# This fixes the "no such table" error in multi-process deployments (Railway).
+# --- DATABASE CONFIGURATION (AGGRESSIVE STABILITY FIX) ---
+# CRITICAL FIX: Use file-based SQLite AND force thread check off.
+# This is necessary for maximum stability in multi-process/multi-thread deployments.
 SQLALCHEMY_DATABASE_URL = "sqlite:///./temp_data.db" 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL
-    # Removed connect_args={"check_same_thread": False} as it is not needed here
+    SQLALCHEMY_DATABASE_URL, 
+    # RE-ADDED: This is often required for Python's sqlite3 in multithreaded environments
+    connect_args={"check_same_thread": False} 
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -34,6 +35,9 @@ Base = declarative_base()
 def get_db():
     db = SessionLocal()
     try:
+        # CRITICAL FIX: Force table creation inside the first connection's session 
+        # as a fallback, ensuring the table exists even if startup event fails.
+        Base.metadata.create_all(bind=engine)
         yield db
     finally:
         db.close()
@@ -56,7 +60,7 @@ class StringAnalysis(Base):
 
 
 # ----------------------------------------------------
-# --- PYDANTIC SCHEMAS ---
+# --- PYDANTIC SCHEMAS (UNCHANGED) ---
 class StringInput(BaseModel):
     value: str = Field(..., description="The string to be analyzed.", min_length=1)
 
@@ -108,6 +112,7 @@ app = FastAPI(title="String Analyzer Service")
 
 # ----------------------------------------------------
 # --- CRITICAL FIX: GUARANTEED DATABASE INITIALIZATION ---
+# NOTE: This is still here, but we added a fallback in get_db()
 @app.on_event("startup")
 def startup_db_init():
     """Forces the creation of tables before the app starts accepting requests."""
@@ -115,7 +120,7 @@ def startup_db_init():
     Base.metadata.create_all(bind=engine)
 # ----------------------------------------------------
 
-# --- Core Analysis Logic (No Change) ---
+# --- Core Analysis Logic (UNCHANGED) ---
 def analyze_string(value: str) -> Dict:
     """Computes all required properties for a given string."""
     # 1. length
@@ -142,7 +147,7 @@ def analyze_string(value: str) -> Dict:
     }
 
 # ----------------------------------------------------
-# --- NLP HELPER FUNCTION (FINAL, FLEXIBLE REGEX) ---
+# --- NLP HELPER FUNCTIONS (UNCHANGED) ---
 def parse_natural_language_filters(query: str) -> Dict[str, str]:
     filters = {}
     query = query.lower()
@@ -206,7 +211,7 @@ def apply_filters_to_query(query, applied_filters):
 
 
 # ----------------------------------------------------
-# --- API ENDPOINT: POST (Analyze and Deduplicate) ---
+# --- API ENDPOINTS (UNCHANGED) ---
 @app.post("/strings", response_model=StringAnalysisOut, status_code=status.HTTP_201_CREATED)
 def analyze_and_save_string_api(
     string_input: StringInput,
@@ -230,7 +235,7 @@ def analyze_and_save_string_api(
             detail="String already exists in the system"
         )
     
-    # CRITICAL CHANGE: Manually unpack and serialize the character_frequency_map
+    # Manually unpack and serialize the character_frequency_map
     db_analysis = StringAnalysis(
         value=string_input.value,
         length=analysis_results['length'],
@@ -249,7 +254,6 @@ def analyze_and_save_string_api(
 
 
 # ----------------------------------------------------
-# --- API ENDPOINT: GET (Retrieve All with Filtering) ---
 @app.get("/strings", response_model=StringListOut)
 def get_all_analyses(
     db: Session = Depends(get_db),
@@ -277,7 +281,6 @@ def get_all_analyses(
 
 
 # ----------------------------------------------------
-# --- API ENDPOINT: GET (Filter by Natural Language) ---
 @app.get("/strings/filter-by-natural-language", response_model=StringListOut)
 def filter_by_nlp(
     query: str = Query(..., description="Natural language query string (e.g., 'palindromes longer than 5')"),
@@ -303,7 +306,6 @@ def filter_by_nlp(
 
 
 # ----------------------------------------------------
-# --- API ENDPOINT: GET (Retrieve Specific String) ---
 @app.get("/strings/{string_hash}", response_model=StringAnalysisOut)
 def get_specific_analysis(string_hash: str, db: Session = Depends(get_db)):
     stmt = select(StringAnalysis).filter_by(sha256_hash=string_hash)
@@ -318,7 +320,6 @@ def get_specific_analysis(string_hash: str, db: Session = Depends(get_db)):
 
 
 # ----------------------------------------------------
-# --- API ENDPOINT: DELETE (Remove Specific String) ---
 @app.delete("/strings/{string_hash}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_specific_analysis(string_hash: str, db: Session = Depends(get_db)):
     stmt = select(StringAnalysis).filter_by(sha256_hash=string_hash)
@@ -334,7 +335,7 @@ def delete_specific_analysis(string_hash: str, db: Session = Depends(get_db)):
     return
 
 
-# --- Root Endpoint for Health Check ---
+# --- Root Endpoint for Health Check (UNCHANGED) ---
 @app.get("/")
 def read_root():
     """Simple root endpoint to confirm API is running."""
@@ -342,7 +343,7 @@ def read_root():
 
 
 # ----------------------------------------------------
-# --- EXTREME OVERRIDE: MANUAL RUN BLOCK ---
+# --- EXTREME OVERRIDE: MANUAL RUN BLOCK (UNCHANGED) ---
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
